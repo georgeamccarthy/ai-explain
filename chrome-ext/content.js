@@ -460,7 +460,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
 function openSummarise(selectedText) {
   currentModel = "gpt-5-mini";
-  const message = `Summarise (in 1-5 sentences): "${selectedText}"`;
+  const message = `Summarise (in 1-5 sentences, avoiding jargon): "${selectedText}"`;
   if (shadowHost) {
     addInitialUserMessage(message);
     conversationHistory.push({ role: "user", content: message });
