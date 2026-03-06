@@ -135,9 +135,8 @@ const CHAT_STYLES = `
     user-select: none;
   }
   #chat-collapse-icon {
-    font-size: 16px;
-    opacity: 0.7;
-    margin-right: 2px;
+    font-size: 18px;
+    opacity: 0.8;
     line-height: 1;
   }
   .message-wrapper {
@@ -205,16 +204,23 @@ Explain: "${selectedText}"`;
 }
 
 function openChat(selectedText) {
+  if (shadowHost) {
+    // Continue the existing chat with the new explain request
+    const message = `Explain: "${selectedText}"`;
+    addInitialUserMessage(message);
+    conversationHistory.push({ role: "user", content: message });
+    // Expand if collapsed
+    shadowHost.style.height = "";
+    const icon = shadowRoot.querySelector("#chat-collapse-icon");
+    if (icon) icon.textContent = "−";
+    sendInitialExplanation();
+    return;
+  }
+
   // Capture context BEFORE inserting DOM (insertion causes selection loss)
   const contextText = getPageText();
   const initialUserMessage = buildUserPrompt(selectedText, contextText);
   conversationHistory = [{ role: "user", content: initialUserMessage }];
-
-  if (shadowHost) {
-    shadowHost.remove();
-    shadowHost = null;
-    shadowRoot = null;
-  }
 
   shadowHost = document.createElement("div");
   shadowHost.id = "ai-explain-host";

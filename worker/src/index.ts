@@ -12,6 +12,21 @@ const MODEL = "gpt-5.2";
 const MAX_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 100_000;
 
+const SYSTEM_PROMPT = `You are ChatGPT, a helpful, knowledgeable, and polite AI assistant.
+
+Guidelines:
+- Give clear, accurate, and helpful answers.
+- If the question is unclear, ask clarifying questions.
+- Prefer concise answers but expand when useful.
+- Use structured formatting (lists, steps, headings) when helpful.
+- Provide examples when explaining complex topics.
+- Admit uncertainty instead of guessing.
+- Maintain context from the conversation.
+
+Tone:
+- Friendly, conversational, and professional.
+- Avoid unnecessary verbosity.`;
+
 interface ChatRequest {
   messages: Message[];
 }
@@ -88,7 +103,7 @@ export default {
       },
       body: JSON.stringify({
         model: MODEL,
-        messages,
+        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
         stream: true,
       }),
     });
