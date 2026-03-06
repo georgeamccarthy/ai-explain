@@ -9,6 +9,7 @@ interface Message {
 }
 
 const MODEL = "gpt-5.2";
+const ALLOWED_MODELS = new Set(["gpt-5.2", "gpt-5-mini"]);
 const MAX_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 100_000;
 
@@ -29,6 +30,7 @@ Tone:
 
 interface ChatRequest {
   messages: Message[];
+  model?: string;
 }
 
 const CORS_HEADERS = {
@@ -72,7 +74,8 @@ export default {
       return new Response("Bad Request", { status: 400, headers });
     }
 
-    const { messages } = body;
+    const { messages, model: requestedModel } = body;
+    const model = requestedModel && ALLOWED_MODELS.has(requestedModel) ? requestedModel : MODEL;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response("Bad Request: messages required", { status: 400, headers });
@@ -102,7 +105,7 @@ export default {
         Authorization: `Bearer ${env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
         stream: true,
       }),

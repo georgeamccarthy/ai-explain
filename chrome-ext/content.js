@@ -183,6 +183,7 @@ let shadowHost = null;
 let shadowRoot = null;
 let conversationHistory = [];
 let isLoading = false;
+let currentModel = null;
 
 const MAX_INPUT_LENGTH = 10_000;
 
@@ -204,12 +205,11 @@ Explain: "${selectedText}"`;
 }
 
 function openChat(selectedText) {
+  currentModel = null;
   if (shadowHost) {
-    // Continue the existing chat with the new explain request
     const message = `Explain: "${selectedText}"`;
     addInitialUserMessage(message);
     conversationHistory.push({ role: "user", content: message });
-    // Expand if collapsed
     shadowHost.style.height = "";
     const icon = shadowRoot.querySelector("#chat-collapse-icon");
     if (icon) icon.textContent = "−";
@@ -221,7 +221,10 @@ function openChat(selectedText) {
   const contextText = getPageText();
   const initialUserMessage = buildUserPrompt(selectedText, contextText);
   conversationHistory = [{ role: "user", content: initialUserMessage }];
+  initChatUI(initialUserMessage);
+}
 
+function initChatUI(initialUserMessage) {
   shadowHost = document.createElement("div");
   shadowHost.id = "ai-explain-host";
   document.body.appendChild(shadowHost);
@@ -248,7 +251,6 @@ function openChat(selectedText) {
     </div>
   `;
 
-  // Re-append style after innerHTML overwrite
   const container = shadowRoot.querySelector("#chat-container");
   container.insertBefore(style, container.firstChild);
 
@@ -260,12 +262,10 @@ function openChat(selectedText) {
   const header = shadowRoot.querySelector("#chat-header");
   const collapseIcon = shadowRoot.querySelector("#chat-collapse-icon");
   let collapsed = false;
-  const expandedHeight = "480px";
-  const collapsedHeight = "44px";
 
   header.addEventListener("click", () => {
     collapsed = !collapsed;
-    shadowHost.style.height = collapsed ? collapsedHeight : expandedHeight;
+    shadowHost.style.height = collapsed ? "44px" : "";
     collapseIcon.textContent = collapsed ? "+" : "−";
   });
 
@@ -287,8 +287,6 @@ function openChat(selectedText) {
   sendBtn.addEventListener("click", sendMessage);
 
   addInitialUserMessage(initialUserMessage);
-
-  // Initial explanation
   sendInitialExplanation();
 }
 
@@ -363,6 +361,7 @@ async function sendInitialExplanation() {
       type: "FETCH_EXPLANATION",
       messages: conversationHistory,
       passphrase,
+      ...(currentModel && { model: currentModel }),
     });
 
     loadingEl.remove();
@@ -419,6 +418,7 @@ async function sendMessage() {
       type: "FETCH_EXPLANATION",
       messages: conversationHistory,
       passphrase,
+      ...(currentModel && { model: currentModel }),
     });
 
     loadingEl.remove();
@@ -453,5 +453,24 @@ function getConfig() {
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "OPEN_CHAT") {
     openChat(message.selectedText || "");
+  } else if (message.type === "OPEN_SUMMARISE") {
+    openSummarise(message.selectedText || "");
   }
 });
+
+function openSummarise(selectedText) {
+  currentModel = "gpt-5-mini";
+  const message = `Summarise (in 1-5 sentences): "${selectedText}"`;
+  if (shadowHost) {
+    addInitialUserMessage(message);
+    conversationHistory.push({ role: "user", content: message });
+    shadowHost.style.height = "";
+    const icon = shadowRoot.querySelector("#chat-collapse-icon");
+    if (icon) icon.textContent = "−";
+    sendInitialExplanation();
+    return;
+  }
+
+  conversationHistory = [{ role: "user", content: message }];
+  initChatUI(message);
+}

@@ -4,28 +4,40 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "AI Explain",
     contexts: ["selection"],
   });
+  chrome.contextMenus.create({
+    id: "ai-summarise",
+    title: "AI Summarise",
+    contexts: ["selection"],
+  });
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId !== "ai-explain" || !tab?.id) return;
+  if (!tab?.id) return;
 
-  chrome.tabs.sendMessage(tab.id, {
-    type: "OPEN_CHAT",
-    selectedText: info.selectionText || "",
-  });
+  if (info.menuItemId === "ai-explain") {
+    chrome.tabs.sendMessage(tab.id, {
+      type: "OPEN_CHAT",
+      selectedText: info.selectionText || "",
+    });
+  } else if (info.menuItemId === "ai-summarise") {
+    chrome.tabs.sendMessage(tab.id, {
+      type: "OPEN_SUMMARISE",
+      selectedText: info.selectionText || "",
+    });
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type !== "FETCH_EXPLANATION") return false;
 
-  fetchFromWorker(message.messages, message.passphrase)
+  fetchFromWorker(message.messages, message.passphrase, message.model)
     .then((text) => sendResponse({ success: true, text }))
     .catch((err) => sendResponse({ success: false, error: err.message }));
 
   return true; // keep channel open for async response
 });
 
-async function fetchFromWorker(messages, passphrase) {
+async function fetchFromWorker(messages, passphrase, model) {
   const { "ai-explain-worker-url": workerUrl } = await chrome.storage.local.get("ai-explain-worker-url");
   if (!workerUrl) throw new Error("Worker URL not set. Configure it in the extension popup.");
 
@@ -37,7 +49,7 @@ async function fetchFromWorker(messages, passphrase) {
         "Content-Type": "application/json",
         "X-Passphrase": passphrase,
       },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, ...(model && { model }) }),
     });
   } catch (err) {
     throw new Error(
