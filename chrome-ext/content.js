@@ -130,44 +130,53 @@ const CHAT_STYLES = `
     opacity: 0.5;
     cursor: not-allowed;
   }
-  .context-block {
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-  .context-toggle {
-    width: 100%;
-    text-align: left;
-    padding: 7px 12px;
-    background: #f5f5f5;
-    border: none;
+  #chat-header {
     cursor: pointer;
-    font-size: 11px;
-    color: #666;
+    user-select: none;
+  }
+  #chat-collapse-icon {
+    font-size: 16px;
+    opacity: 0.7;
+    margin-right: 2px;
+    line-height: 1;
+  }
+  .message-wrapper {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-family: inherit;
+    flex-direction: column;
+    align-items: flex-end;
+    align-self: flex-end;
+    max-width: 90%;
   }
-  .context-toggle:hover {
-    background: #ebebeb;
+  .message-wrapper > .message {
+    max-width: 100%;
   }
-  .context-body {
-    display: none;
-    padding: 10px 12px;
-    max-height: 180px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    color: #444;
-    background: #fafafa;
+  .message.collapsible {
+    max-height: 72px;
+    overflow: hidden;
+    position: relative;
+  }
+  .message.user.collapsible::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background: linear-gradient(transparent, #1a1a2e);
+    border-radius: 0 0 10px 3px;
+  }
+  .expand-toggle {
     font-size: 11px;
-    line-height: 1.4;
-    border-top: 1px solid #e0e0e0;
+    color: #aaa;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 3px 0;
+    font-family: inherit;
+    align-self: flex-end;
   }
-  .context-body.open {
-    display: block;
+  .expand-toggle:hover {
+    color: #666;
   }
 `;
 
@@ -220,7 +229,10 @@ function openChat(selectedText) {
     <div id="chat-container">
       <div id="chat-header">
         <span id="chat-header-title">AI Explain</span>
-        <button id="chat-close" title="Close">✕</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span id="chat-collapse-icon">−</span>
+          <button id="chat-close" title="Close">✕</button>
+        </div>
       </div>
       <div id="chat-messages"></div>
       <div id="chat-input-area">
@@ -234,7 +246,22 @@ function openChat(selectedText) {
   const container = shadowRoot.querySelector("#chat-container");
   container.insertBefore(style, container.firstChild);
 
-  shadowRoot.querySelector("#chat-close").addEventListener("click", closeChat);
+  shadowRoot.querySelector("#chat-close").addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeChat();
+  });
+
+  const header = shadowRoot.querySelector("#chat-header");
+  const collapseIcon = shadowRoot.querySelector("#chat-collapse-icon");
+  let collapsed = false;
+  const expandedHeight = "480px";
+  const collapsedHeight = "44px";
+
+  header.addEventListener("click", () => {
+    collapsed = !collapsed;
+    shadowHost.style.height = collapsed ? collapsedHeight : expandedHeight;
+    collapseIcon.textContent = collapsed ? "+" : "−";
+  });
 
   const input = shadowRoot.querySelector("#chat-input");
   const sendBtn = shadowRoot.querySelector("#chat-send");
@@ -253,7 +280,7 @@ function openChat(selectedText) {
 
   sendBtn.addEventListener("click", sendMessage);
 
-  addContextBlock(contextText);
+  addInitialUserMessage(initialUserMessage);
 
   // Initial explanation
   sendInitialExplanation();
@@ -269,32 +296,28 @@ function closeChat() {
   }
 }
 
-function addContextBlock(pageText) {
+function addInitialUserMessage(text) {
   const messages = shadowRoot.querySelector("#chat-messages");
-  const block = document.createElement("div");
-  block.className = "context-block";
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "message-wrapper";
+
+  const div = document.createElement("div");
+  div.className = "message user collapsible";
+  div.textContent = text;
 
   const toggle = document.createElement("button");
-  toggle.className = "context-toggle";
-  const label = document.createElement("span");
-  label.textContent = "Page context sent to AI";
-  const arrow = document.createElement("span");
-  arrow.textContent = "▶";
-  toggle.appendChild(label);
-  toggle.appendChild(arrow);
-
-  const body = document.createElement("div");
-  body.className = "context-body";
-  body.textContent = pageText;
+  toggle.className = "expand-toggle";
+  toggle.textContent = "Expand ▼";
 
   toggle.addEventListener("click", () => {
-    body.classList.toggle("open");
-    arrow.textContent = body.classList.contains("open") ? "▼" : "▶";
+    const isCollapsed = div.classList.toggle("collapsible");
+    toggle.textContent = div.classList.contains("collapsible") ? "Expand ▼" : "Collapse ▲";
   });
 
-  block.appendChild(toggle);
-  block.appendChild(body);
-  messages.appendChild(block);
+  wrapper.appendChild(div);
+  wrapper.appendChild(toggle);
+  messages.appendChild(wrapper);
 }
 
 function addMessage(role, text) {
