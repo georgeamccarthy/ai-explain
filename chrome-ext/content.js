@@ -130,6 +130,45 @@ const CHAT_STYLES = `
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .context-block {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .context-toggle {
+    width: 100%;
+    text-align: left;
+    padding: 7px 12px;
+    background: #f5f5f5;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: inherit;
+  }
+  .context-toggle:hover {
+    background: #ebebeb;
+  }
+  .context-body {
+    display: none;
+    padding: 10px 12px;
+    max-height: 180px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #444;
+    background: #fafafa;
+    font-size: 11px;
+    line-height: 1.4;
+    border-top: 1px solid #e0e0e0;
+  }
+  .context-body.open {
+    display: block;
+  }
 `;
 
 let shadowHost = null;
@@ -139,40 +178,26 @@ let isLoading = false;
 
 const MAX_INPUT_LENGTH = 10_000;
 
-function getPageContext() {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return "";
-
-  try {
-    const range = selection.getRangeAt(0);
-    let node = range.commonAncestorContainer;
-    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
-
-    const blockTags = new Set(["P", "DIV", "ARTICLE", "SECTION", "MAIN", "BLOCKQUOTE", "LI", "TD", "TH"]);
-    while (node && node !== document.body) {
-      if (blockTags.has(node.tagName)) {
-        return (node.innerText || "").trim().slice(0, 2000);
-      }
-      node = node.parentElement;
-    }
-  } catch {
-    // fallback below
-  }
-
-  return (document.body?.innerText || "").trim().slice(0, 2000);
+function getPageText() {
+  const el =
+    document.querySelector("main, article, [role='main'], [role='article']") ||
+    document.body;
+  return (el.innerText || "").replace(/\n{3,}/g, "\n\n").trim().slice(0, 50_000);
 }
 
-function buildUserPrompt(selectedText, contextText) {
-  return `${document.title}
-${location.href}
-${contextText}
+function buildUserPrompt(selectedText, pageText) {
+  return `Page: ${document.title}
+URL: ${location.href}
+
+Page content:
+${pageText}
 
 Explain: "${selectedText}"`;
 }
 
 function openChat(selectedText) {
   // Capture context BEFORE inserting DOM (insertion causes selection loss)
-  const contextText = getPageContext();
+  const contextText = getPageText();
   const initialUserMessage = buildUserPrompt(selectedText, contextText);
   conversationHistory = [{ role: "user", content: initialUserMessage }];
 
@@ -228,6 +253,8 @@ function openChat(selectedText) {
 
   sendBtn.addEventListener("click", sendMessage);
 
+  addContextBlock(contextText);
+
   // Initial explanation
   sendInitialExplanation();
 }
@@ -240,6 +267,34 @@ function closeChat() {
     conversationHistory = [];
     isLoading = false;
   }
+}
+
+function addContextBlock(pageText) {
+  const messages = shadowRoot.querySelector("#chat-messages");
+  const block = document.createElement("div");
+  block.className = "context-block";
+
+  const toggle = document.createElement("button");
+  toggle.className = "context-toggle";
+  const label = document.createElement("span");
+  label.textContent = "Page context sent to AI";
+  const arrow = document.createElement("span");
+  arrow.textContent = "▶";
+  toggle.appendChild(label);
+  toggle.appendChild(arrow);
+
+  const body = document.createElement("div");
+  body.className = "context-body";
+  body.textContent = pageText;
+
+  toggle.addEventListener("click", () => {
+    body.classList.toggle("open");
+    arrow.textContent = body.classList.contains("open") ? "▼" : "▶";
+  });
+
+  block.appendChild(toggle);
+  block.appendChild(body);
+  messages.appendChild(block);
 }
 
 function addMessage(role, text) {

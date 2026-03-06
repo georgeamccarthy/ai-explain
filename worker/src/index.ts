@@ -10,7 +10,7 @@ interface Message {
 
 const MODEL = "gpt-5.2";
 const MAX_MESSAGES = 50;
-const MAX_MESSAGE_LENGTH = 10_000;
+const MAX_MESSAGE_LENGTH = 100_000;
 
 interface ChatRequest {
   messages: Message[];
