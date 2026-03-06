@@ -1,0 +1,6 @@
+name = "ai-explain-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Secrets are set via `wrangler secret put OPENAI_API_KEY` and `wrangler secret put PASSPHRASE`
+# Never put secret values in this file

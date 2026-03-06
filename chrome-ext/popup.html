@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Explain</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 280px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #fff;
+      color: #1a1a2e;
+    }
+    h1 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 16px;
+    }
+    .status {
+      font-size: 13px;
+      margin-bottom: 12px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #f5f5f5;
+    }
+    .status.set {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .status.unset {
+      background: #fff3e0;
+      color: #e65100;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #444;
+    }
+    input[type="password"],
+    input[type="url"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 10px;
+      outline: none;
+    }
+    input[type="password"]:focus,
+    input[type="url"]:focus {
+      border-color: #1a1a2e;
+    }
+    button {
+      width: 100%;
+      padding: 9px;
+      background: #1a1a2e;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #2d2d4e; }
+    .passphrase-set {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: #888;
+      letter-spacing: 2px;
+    }
+    .passphrase-set a {
+      font-size: 12px;
+      letter-spacing: 0;
+      color: #1a1a2e;
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .passphrase-set a:hover { text-decoration: underline; }
+    .saved-msg {
+      font-size: 12px;
+      color: #2e7d32;
+      text-align: center;
+      margin-top: 8px;
+      min-height: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>AI Explain</h1>
+  <p class="subtitle">Highlight text → right-click → AI Explain</p>
+  <div id="status" class="status unset">Not configured</div>
+  <label for="worker-url-input">Worker URL</label>
+  <input type="url" id="worker-url-input" placeholder="https://your-worker.workers.dev/chat" />
+  <label for="passphrase-input">Passphrase</label>
+  <div id="passphrase-set" class="passphrase-set" style="display:none">
+    ••••••••<a id="change-passphrase">Change</a>
+  </div>
+  <input type="password" id="passphrase-input" placeholder="Enter passphrase..." />
+  <button id="save-btn">Save</button>
+  <p class="saved-msg" id="saved-msg"></p>
+  <script src="popup.js"></script>
+</body>
+</html>
