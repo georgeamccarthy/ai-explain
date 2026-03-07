@@ -201,7 +201,7 @@ URL: ${location.href}
 Page content:
 ${pageText}
 
-Explain: "${selectedText}"`;
+Explain in 1-5 sentences: "${selectedText}"`;
 }
 
 function openChat(selectedText) {
