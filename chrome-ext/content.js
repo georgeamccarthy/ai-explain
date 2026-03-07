@@ -209,22 +209,10 @@ let currentModel = null;
 
 const MAX_INPUT_LENGTH = 10_000;
 
-function sendRuntimeMessage(msg) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(msg, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-      } else {
-        resolve(response);
-      }
-    });
-  });
-}
-
 async function getPageText(selectedText) {
   if (document.contentType === 'application/pdf' || /\.pdf(\?[^#]*)?$/i.test(location.pathname)) {
     try {
-      const response = await sendRuntimeMessage({ type: 'GET_PDF_TEXT', url: location.href });
+      const response = await chrome.runtime.sendMessage({ type: 'GET_PDF_TEXT', url: location.href });
       const ctx = windowAroundSelection(response?.text || '', selectedText, 3500, 1500);
       return ctx;
     } catch {
@@ -266,8 +254,10 @@ function buildUserPrompt(selectedText, pageText) {
 async function openChat(selectedText) {
   currentModel = null;
   if (shadowHost) {
-    const message = `Explain in 1-5 sentences: "${selectedText}"`;
-    addInitialUserMessage(message);
+    const contextText = await getPageText(selectedText);
+    const contextFailed = contextText === null;
+    const message = buildUserPrompt(selectedText, contextFailed ? '' : contextText);
+    addInitialUserMessage(message, contextFailed);
     conversationHistory.push({ role: "user", content: message });
     shadowHost.style.height = "";
     const icon = shadowRoot.querySelector("#chat-collapse-icon");
@@ -451,7 +441,7 @@ async function sendInitialExplanation() {
       return;
     }
 
-    const response = await sendRuntimeMessage({
+    const response = await chrome.runtime.sendMessage({
       type: "FETCH_EXPLANATION",
       messages: conversationHistory,
       passphrase,
@@ -508,7 +498,7 @@ async function sendMessage() {
       return;
     }
 
-    const response = await sendRuntimeMessage({
+    const response = await chrome.runtime.sendMessage({
       type: "FETCH_EXPLANATION",
       messages: conversationHistory,
       passphrase,
