@@ -10,7 +10,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://*.workers.dev/*"
+    "https://*.workers.dev/*",
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
@@ -20,9 +21,14 @@
       "matches": ["<all_urls>"],
       "js": ["content.js"],
       "css": ["content.css"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "match_origin_as_fallback": true
     }
   ],
+  "web_accessible_resources": [{
+    "resources": ["lib/pdf.worker.min.js"],
+    "matches": ["<all_urls>"]
+  }],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

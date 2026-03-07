@@ -52,6 +52,7 @@ const CHAT_STYLES = `
     display: flex;
     flex-direction: column;
     gap: 12px;
+    user-select: text;
   }
   .message {
     max-width: 90%;
@@ -151,7 +152,7 @@ const CHAT_STYLES = `
   }
   .message.collapsible {
     max-height: 72px;
-    overflow: hidden;
+    overflow: clip;
     position: relative;
   }
   .message.user.collapsible::after {
@@ -164,7 +165,23 @@ const CHAT_STYLES = `
     background: linear-gradient(transparent, #1a1a2e);
     border-radius: 0 0 10px 3px;
   }
-  .expand-toggle {
+  .assistant-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    align-self: flex-start;
+    max-width: 90%;
+  }
+  .assistant-wrapper > .message {
+    max-width: 100%;
+  }
+  .message-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+  }
+  .expand-toggle,
+  .copy-btn {
     font-size: 11px;
     color: #aaa;
     cursor: pointer;
@@ -172,10 +189,15 @@ const CHAT_STYLES = `
     border: none;
     padding: 3px 0;
     font-family: inherit;
-    align-self: flex-end;
   }
-  .expand-toggle:hover {
+  .expand-toggle:hover,
+  .copy-btn:hover {
     color: #666;
+  }
+  .context-warning {
+    font-size: 11px;
+    color: #c0392b;
+    padding: 3px 0;
   }
 `;
 
@@ -187,24 +209,61 @@ let currentModel = null;
 
 const MAX_INPUT_LENGTH = 10_000;
 
-function getPageText() {
+function sendRuntimeMessage(msg) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(msg, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve(response);
+      }
+    });
+  });
+}
+
+async function getPageText(selectedText) {
+  if (document.contentType === 'application/pdf' || /\.pdf(\?[^#]*)?$/i.test(location.pathname)) {
+    try {
+      const response = await sendRuntimeMessage({ type: 'GET_PDF_TEXT', url: location.href });
+      const ctx = windowAroundSelection(response?.text || '', selectedText, 3500, 1500);
+      return ctx;
+    } catch {
+      return null;
+    }
+  }
   const el =
     document.querySelector("main, article, [role='main'], [role='article']") ||
     document.body;
   return (el.innerText || "").replace(/\n{3,}/g, "\n\n").trim().slice(0, 50_000);
 }
 
-function buildUserPrompt(selectedText, pageText) {
-  return `Page: ${document.title}
-URL: ${location.href}
-
-Page content:
-${pageText}
-
-Explain in 1-5 sentences: "${selectedText}"`;
+function windowAroundSelection(text, selection, before, after) {
+  if (!text || !selection) return null;
+  const norm = s => s.replace(/\s+/g, ' ').trim();
+  const nText = norm(text);
+  const nSel = norm(selection);
+  let idx = nText.indexOf(nSel);
+  if (idx === -1) idx = nText.indexOf(nSel.slice(0, 60));
+  if (idx === -1) return null;
+  const start = Math.max(0, idx - before);
+  const end = Math.min(nText.length, idx + nSel.length + after);
+  return nText.slice(start, end);
 }
 
-function openChat(selectedText) {
+function getPageTitle() {
+  if (document.title) return document.title;
+  const filename = location.pathname.split('/').pop();
+  return filename ? decodeURIComponent(filename.replace(/\.pdf$/i, '').replace(/[_-]/g, ' ')) : location.href;
+}
+
+function buildUserPrompt(selectedText, pageText) {
+  const parts = [`Page: ${getPageTitle()}`, `URL: ${location.href}`];
+  if (pageText) parts.push(`Context:\n${pageText}`);
+  parts.push(`Explain in 1-5 sentences: "${selectedText}"`);
+  return parts.join('\n\n');
+}
+
+async function openChat(selectedText) {
   currentModel = null;
   if (shadowHost) {
     const message = `Explain in 1-5 sentences: "${selectedText}"`;
@@ -218,13 +277,14 @@ function openChat(selectedText) {
   }
 
   // Capture context BEFORE inserting DOM (insertion causes selection loss)
-  const contextText = getPageText();
-  const initialUserMessage = buildUserPrompt(selectedText, contextText);
+  const contextText = await getPageText(selectedText);
+  const contextFailed = contextText === null;
+  const initialUserMessage = buildUserPrompt(selectedText, contextFailed ? '' : contextText);
   conversationHistory = [{ role: "user", content: initialUserMessage }];
-  initChatUI(initialUserMessage);
+  initChatUI(initialUserMessage, contextFailed);
 }
 
-function initChatUI(initialUserMessage) {
+function initChatUI(initialUserMessage, contextFailed = false) {
   shadowHost = document.createElement("div");
   shadowHost.id = "ai-explain-host";
   document.body.appendChild(shadowHost);
@@ -286,7 +346,7 @@ function initChatUI(initialUserMessage) {
 
   sendBtn.addEventListener("click", sendMessage);
 
-  addInitialUserMessage(initialUserMessage);
+  addInitialUserMessage(initialUserMessage, contextFailed);
   sendInitialExplanation();
 }
 
@@ -300,7 +360,20 @@ function closeChat() {
   }
 }
 
-function addInitialUserMessage(text) {
+function makeCopyButton(text) {
+  const btn = document.createElement("button");
+  btn.className = "copy-btn";
+  btn.textContent = "Copy";
+  btn.addEventListener("click", () => {
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy"; }, 2000);
+    });
+  });
+  return btn;
+}
+
+function addInitialUserMessage(text, contextFailed = false) {
   const messages = shadowRoot.querySelector("#chat-messages");
 
   const wrapper = document.createElement("div");
@@ -315,12 +388,23 @@ function addInitialUserMessage(text) {
   toggle.textContent = "Expand ▼";
 
   toggle.addEventListener("click", () => {
-    const isCollapsed = div.classList.toggle("collapsible");
+    div.classList.toggle("collapsible");
     toggle.textContent = div.classList.contains("collapsible") ? "Expand ▼" : "Collapse ▲";
   });
 
+  const actions = document.createElement("div");
+  actions.className = "message-actions";
+  actions.appendChild(toggle);
+  actions.appendChild(makeCopyButton(text));
+  if (contextFailed) {
+    const warn = document.createElement("span");
+    warn.className = "context-warning";
+    warn.textContent = "No context found";
+    actions.appendChild(warn);
+  }
+
   wrapper.appendChild(div);
-  wrapper.appendChild(toggle);
+  wrapper.appendChild(actions);
   messages.appendChild(wrapper);
 }
 
@@ -329,7 +413,17 @@ function addMessage(role, text) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
   div.textContent = text;
-  messages.appendChild(div);
+
+  if (role === 'user' || role === 'assistant') {
+    const wrapper = document.createElement("div");
+    wrapper.className = role === 'user' ? "message-wrapper" : "assistant-wrapper";
+    wrapper.appendChild(div);
+    wrapper.appendChild(makeCopyButton(text));
+    messages.appendChild(wrapper);
+  } else {
+    messages.appendChild(div);
+  }
+
   messages.scrollTop = messages.scrollHeight;
   return div;
 }
@@ -357,7 +451,7 @@ async function sendInitialExplanation() {
       return;
     }
 
-    const response = await chrome.runtime.sendMessage({
+    const response = await sendRuntimeMessage({
       type: "FETCH_EXPLANATION",
       messages: conversationHistory,
       passphrase,
@@ -414,7 +508,7 @@ async function sendMessage() {
       return;
     }
 
-    const response = await chrome.runtime.sendMessage({
+    const response = await sendRuntimeMessage({
       type: "FETCH_EXPLANATION",
       messages: conversationHistory,
       passphrase,

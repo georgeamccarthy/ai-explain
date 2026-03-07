@@ -27,7 +27,16 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "GET_PDF_TEXT") {
+    const tabId = sender.tab?.id;
+    if (!tabId) { sendResponse({ text: '' }); return true; }
+    extractPdfTextViaTab(tabId, message.url)
+      .then(text => sendResponse({ text }))
+      .catch(() => sendResponse({ text: '' }));
+    return true;
+  }
+
   if (message.type !== "FETCH_EXPLANATION") return false;
 
   fetchFromWorker(message.messages, message.passphrase, message.model)
@@ -36,6 +45,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true; // keep channel open for async response
 });
+
+async function extractPdfTextViaTab(tabId, url) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['lib/pdf.min.js'],
+  });
+
+  const workerSrc = chrome.runtime.getURL('lib/pdf.worker.min.js');
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async (pdfUrl, workerSrc) => {
+      try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+        const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+        const pageTexts = [];
+        for (let i = 1; i <= Math.min(pdf.numPages, 50); i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          pageTexts.push(content.items.map(item => item.str).join(' '));
+        }
+        return pageTexts.join('\n\n').trim().slice(0, 50_000);
+      } catch (e) {
+        return '';
+      }
+    },
+    args: [url, workerSrc],
+  });
+
+  return results[0]?.result || '';
+}
 
 async function fetchFromWorker(messages, passphrase, model) {
   const { "ai-explain-worker-url": workerUrl } = await chrome.storage.local.get("ai-explain-worker-url");
