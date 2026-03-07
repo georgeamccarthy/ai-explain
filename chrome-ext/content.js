@@ -207,7 +207,7 @@ Explain in 1-5 sentences: "${selectedText}"`;
 function openChat(selectedText) {
   currentModel = null;
   if (shadowHost) {
-    const message = `Explain: "${selectedText}"`;
+    const message = `Explain in 1-5 sentences: "${selectedText}"`;
     addInitialUserMessage(message);
     conversationHistory.push({ role: "user", content: message });
     shadowHost.style.height = "";
